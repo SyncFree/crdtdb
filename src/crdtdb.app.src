@@ -1,0 +1,14 @@
+%% -*- erlang -*-
+{application, crdtdb,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  riak_core
+                 ]},
+  {mod, { crdtdb_app, []}},
+  {env, []}
+ ]}.
