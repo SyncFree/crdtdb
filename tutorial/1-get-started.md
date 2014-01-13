@@ -118,6 +118,8 @@ build the application, and make an erlang "release" of a single node
 for us. You can watch the words go by, or do something else. I'm going
 for coffee, back in a bit...
 
+NOTE: Nicholas Rutherford reported that this (partially) failed for him, it seems that some dependancy failed to download. If you do see a fleeting failure, please run `make rel` again. I blame github. Someone should talk to them about scalable, fault-tolerant systems. Really.
+
 ## Ping?
 
 If all went well (email me if it didn't, or put it on the SyncFree
