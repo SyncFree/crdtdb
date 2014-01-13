@@ -27,6 +27,7 @@ xref: all
 stage : rel
 	$(foreach dep,$(wildcard deps/*), rm -rf rel/crdtdb/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/crdtdb/lib;)
 	$(foreach app,$(wildcard apps/*), rm -rf rel/crdtdb/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/crdtdb/lib;)
+	rm -rf rel/crdtdb/lib/crdtdb-1/ebin && ln -sf $(abspath ebin) rel/crdtdb/lib/crdtdb-1/ebin
 
 
 ##

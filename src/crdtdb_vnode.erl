@@ -2,6 +2,9 @@
 -behaviour(riak_core_vnode).
 -include("crdtdb.hrl").
 
+%% CRDT API
+-export([get/2, put/3]).
+
 -export([start_vnode/1,
          init/1,
          terminate/2,
@@ -21,18 +24,54 @@
              start_vnode/1
              ]).
 
--record(state, {partition}).
+-record(state, {partition, dets}).
 
-%% API
+-define(SYNC(PrefList, Command),
+        riak_core_vnode_master:sync_command(PrefList, Command, crdtdb_vnode_master)).
+
+%% CRDT API
+
+%% @doc get the CRDT stored under Key
+get(Preflist, Key) ->
+  ?SYNC(Preflist, {get, Key}).
+
+%% @doc put the given CRDT as the value under Key
+put(Preflist, Key, CRDT) ->
+    ?SYNC(Preflist, {put, Key, CRDT}).
+
+%% Vnode API
 start_vnode(I) ->
     riak_core_vnode_master:get_vnode_pid(I, ?MODULE).
 
 init([Partition]) ->
-    {ok, #state { partition=Partition }}.
+    File = filename:join(app_helper:get_env(riak_core, platform_data_dir),
+                         integer_to_list(Partition)),
+    {ok, Dets} = dets:open_file(Partition, [{file, File}, {type, set}]),
+    {ok, #state { partition=Partition, dets=Dets }}.
 
 %% Sample command: respond to a ping
 handle_command(ping, _Sender, State) ->
     {reply, {pong, State#state.partition}, State};
+%% Get the CRDT stored at Key
+handle_command({get, Key}, _Sender, State=#state{dets=Dets}) ->
+    Reply = case dets:lookup(Dets, Key) of
+                [] -> {error, notfound};
+                [{Key, CRDT}] -> {ok, CRDT};
+                Error -> Error
+            end,
+    {reply, Reply, State};
+handle_command({put, Key, #crdt{mod=Mod, value=Val}=CRDT}, _Sender, State=#state{dets=Dets}) ->
+    Reply = case dets:lookup(Dets, Key) of
+                [] -> dets:insert(Dets, {Key, CRDT});
+                [{Key, #crdt{mod=Mod, value=LocalValue}}] ->
+                    Merged = Mod:merge(Val, LocalValue),
+                    dets:insert(Dets, {Key, #crdt{mod=Mod, value=Merged}});
+                [{Key, #crdt{mod=Other}}] ->
+                    {error, {type_conflict, Mod, Other}};
+                Error ->
+                    Error
+            end,
+    {reply, Reply, State};
 handle_command(Message, _Sender, State) ->
     ?PRINT({unhandled_command, Message}),
     {noreply, State}.
@@ -67,5 +106,5 @@ handle_coverage(_Req, _KeySpaces, _Sender, State) ->
 handle_exit(_Pid, _Reason, State) ->
     {noreply, State}.
 
-terminate(_Reason, _State) ->
-    ok.
+terminate(_Reason, #state{dets=Dets}) ->
+    dets:close(Dets).
