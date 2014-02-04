@@ -26,18 +26,16 @@
 
 -record(state, {partition, dets}).
 
--define(SYNC(PrefList, Command),
-        riak_core_vnode_master:sync_command(PrefList, Command, crdtdb_vnode_master)).
-
 %% CRDT API
 
 %% @doc get the CRDT stored under Key
 get(Preflist, Key) ->
-  ?SYNC(Preflist, {get, Key}).
+    riak_core_vnode_master:command(Preflist, {get, Key}, {fsm, undefined, self()}, crdtdb_vnode_master).
+
 
 %% @doc put the given CRDT as the value under Key
 put(Preflist, Key, CRDT) ->
-    ?SYNC(Preflist, {put, Key, CRDT}).
+    riak_core_vnode_master:command(Preflist, {put, Key, CRDT}, {fsm, undefined, self()}, crdtdb_vnode_master).
 
 %% Vnode API
 start_vnode(I) ->

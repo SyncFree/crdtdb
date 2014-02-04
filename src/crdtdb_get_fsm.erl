@@ -32,8 +32,8 @@
 -record(state, {from :: {raw, integer(), pid()},
                 key, %% The key for the CRDT
                 tref, %% A timer, so we don't wait for ever
-                results, %% success responses
-                errors %% error responses
+                results=[], %% success responses
+                errors=[] %% error responses
                }).
 
 -define(BUCKET, <<"crdtdb">>).
@@ -78,19 +78,28 @@ execute(timeout, StateData=#state{key = BKey}) ->
             client_reply({error, {insufficient_vnodes, VN, ?R}}, StateData);
         _ ->
             crdtdb_vnode:get(Preflist, BKey),
-            {next_state, await_vnode, StateData#state{tref=TRef}}
+            {next_state, await_responses, StateData#state{tref=TRef}}
     end.
 
 %% @private
 await_responses(request_timeout, StateData) ->
     client_reply({error,timeout}, StateData);
+await_responses({error, notfound}, StateData = #state{results=Results0}) ->
+    Results = [notfound | Results0],
+    case length(Results) of
+        ?R ->
+            Reply = merge_results(Results),
+            client_reply(Reply, StateData#state{results=Results});
+        _ ->
+            {next_state, await_responses, StateData#state{results=Results}}
+    end;
 await_responses({error, _E}=Res, StateData = #state{errors=Errors0}) ->
     Errors = [Res | Errors0],
     case length(Errors) of %% Can't get ?R successes now
         ?R ->
             client_reply({error, r_unsatisfied}, StateData#state{errors = Errors});
         _ ->
-            {next_state, await_vnode, StateData#state{errors = Errors}}
+            {next_state, await_responses, StateData#state{errors = Errors}}
     end;
 await_responses({ok, CRDT}, StateData=#state{results=Results0}) ->
     Results = [CRDT | Results0],
@@ -99,7 +108,7 @@ await_responses({ok, CRDT}, StateData=#state{results=Results0}) ->
             Reply = merge_results(Results),
             client_reply(Reply, StateData#state{results=Results});
         _ ->
-            {next_state, await_vnode, StateData#state{results=Results}}
+            {next_state, await_responses, StateData#state{results=Results}}
     end.
 
 %% @private
@@ -140,7 +149,9 @@ merge_results([], Mergedest) ->
 merge_results([#crdt{mod=Mod, value=V1} | Rest], #crdt{mod=Mod, value=V2}) ->
     merge_results(Rest, #crdt{mod=Mod, value=Mod:merge(V1, V2)});
 merge_results([#crdt{mod=Mod1} | _Rest], #crdt{mod=Mod2}) ->
-    {error, {type_conflict, Mod1, Mod2}}.
+    {error, {type_conflict, Mod1, Mod2}};
+merge_results([Res | Rest], notfound) ->
+    merge_results(Rest, Res).
 
 schedule_timeout(infinity) ->
     undefined;

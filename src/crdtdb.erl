@@ -31,5 +31,5 @@ wait_for_reqid(ReqId, Timeout) ->
     receive
         {ReqId, Response} -> Response
     after Timeout ->
-            {error, timeout}
+            {error, client_timeout}
     end.

@@ -31,7 +31,7 @@
                 key, %% The key for the CRDT
                 crdt, %% The crdt to store
                 tref, %% A timer, so we don't wait for ever
-                results, %% success responses
+                results=0, %% success responses
                 errors %% error responses
                }).
 
@@ -78,7 +78,7 @@ execute(timeout, StateData=#state{crdt = CRDT, key = BKey}) ->
             client_reply({error, {insufficient_vnodes, VN, ?W}}, StateData);
         _ ->
             crdtdb_vnode:put(Preflist, BKey, CRDT),
-            {next_state, await_vnode, StateData#state{tref=TRef}}
+            {next_state, await_responses, StateData#state{tref=TRef}}
     end.
 
 %% @private
@@ -90,7 +90,7 @@ await_responses({error, _E}=Res, StateData = #state{errors=Errors0}) ->
         ?W ->
             client_reply({error, w_unsatisfied}, StateData#state{errors = Errors});
         _ ->
-            {next_state, await_vnode, StateData#state{errors = Errors}}
+            {next_state, await_responses, StateData#state{errors = Errors}}
     end;
 await_responses(ok, StateData=#state{results=Results0}) ->
     Results = Results0 +1,
@@ -98,7 +98,7 @@ await_responses(ok, StateData=#state{results=Results0}) ->
         ?W ->
             client_reply(ok, StateData#state{results=Results});
         _ ->
-            {next_state, await_vnode, StateData#state{results=Results}}
+            {next_state, await_responses, StateData#state{results=Results}}
     end.
 
 %% @private
