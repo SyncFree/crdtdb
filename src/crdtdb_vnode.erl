@@ -49,9 +49,6 @@ init([Partition]) ->
     {ok, Dets} = dets:open_file(Partition, [{file, File}, {type, set}]),
     {ok, #state { partition=Partition, dets=Dets }}.
 
-%% Sample command: respond to a ping
-handle_command(ping, _Sender, State) ->
-    {reply, {pong, State#state.partition}, State};
 %% Get the CRDT stored at Key
 handle_command({get, Key}, _Sender, State=#state{dets=Dets}) ->
     Reply = case dets:lookup(Dets, Key) of
